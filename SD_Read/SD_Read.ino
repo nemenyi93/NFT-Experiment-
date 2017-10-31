@@ -56,7 +56,7 @@ void setup() {
   // if the file is available, write to it:
   if (dataFile) {
     while (dataFile.available()) {
-      output = String(dataFile.read());
+      output = dataFile.read();
       Serial.println(output);
     }
     dataFile.close();
