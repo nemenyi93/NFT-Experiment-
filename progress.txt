@@ -1,0 +1,13 @@
+To do:
+* Read and format data from sensors
+  - ES2
+  - pH
+  - BME280
+* Calibrate sensors
+  - pH
+  - BME280
+* Modularize/generalize code
+* Upload data to web server (Vultr)
+  - Figure out connectivity issue
+* SMS alerts for aberrant behavior
+* Look into system control

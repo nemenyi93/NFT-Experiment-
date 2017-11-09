@@ -22,8 +22,16 @@
 
 #include <SPI.h>
 #include <SD.h>
+#include <SDISerial.h>
 
+//in order to recieve data you must choose a pin that supports interupts
+#define DATALINE_PIN 2
+#define INVERTED 1
+
+SDISerial sdi_serial_connection(DATALINE_PIN, INVERTED);
 const int chipSelect = 53;
+const String fileName = "datalog.txt";
+const String delimeter = ",";
 
 void setupES2Sensor() {
   sdi_serial_connection.begin(); // start our SDI connection 
@@ -32,7 +40,7 @@ void setupES2Sensor() {
   delay(3000); // startup delay to allow sensor to powerup and output its DDI serial string
 }
 
-void setupSDCard)() {
+void setupSDCard() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
@@ -48,13 +56,15 @@ void setupSDCard)() {
     return;
   }
   Serial.println("card initialized.");
-}
+}  
 
 void writeHeaderToSD() {
   String header = "Format: EC, VMC, Temp";
-  SD.open();
-  SD.println(header);
-  SD.close();
+  File dataFile = SD.open(fileName, FILE_WRITE);
+  if (dataFile) {
+    dataFile.println(header);
+  }
+  dataFile.close();
 }
 
 char* get_measurement(){
@@ -74,28 +84,21 @@ char* collectES2Data() {
   return response;
 }
 
-void writeDataToSD() {
-   // make a string for assembling the data to log:
-  String dataString = "";
-  char dataBuf[10];
-  
-  dataString = "Data\n";
-  dataString.toCharArray(dataBuf, 10);
-
-  // open the file. note that only one file can be open at a time,
+void writeDataToSD(char* data) {
+// open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  File dataFile = SD.open(fileName, FILE_WRITE);
 
   // if the file is available, write to it:
   if (dataFile) {
-    dataFile.write(dataBuf);
+    dataFile.println(data);
     dataFile.close();
     // print to the serial port too:
-    Serial.println(dataBuf);
+    Serial.println(data);
   }
   // if the file isn't open, pop up an error:
   else {
-    Serial.println("error opening datalog.txt");
+    Serial.println("Error opening " + fileName);
   }
   delay(3000);
 }
@@ -113,7 +116,7 @@ void loop() {
   ES2Data = collectES2Data();
 
   //TODO: Format data and verify that it writes to SD Card
-  writeDataToSD();
+  writeDataToSD(ES2Data);
   delay(500);
 }
 
