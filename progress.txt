@@ -2,6 +2,7 @@ To do:
 * Read and format data from sensors
   - ES2
   - pH
+    -> Figure out timing/converting between String and char*
   - BME280
 * Calibrate sensors
   - pH
