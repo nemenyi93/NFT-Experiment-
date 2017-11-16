@@ -8,9 +8,12 @@ circuit:
  ** CS   - pin 53 (for MKRZero SD: SDCARD_SS_PIN)
  */
 
+#include <stdint.h>
 #include <SPI.h>
 #include <SD.h>
 #include <SDISerial.h>
+#include <SparkFunBME280.h>
+#include <Wire.h>
 
 //in order to recieve data you must choose a pin that supports interupts
 #define DATALINE_PIN 2
@@ -23,8 +26,9 @@ SDISerial sdi_serial_connection(DATALINE_PIN, INVERTED);
 const int chipSelect = 53;
 const String fileName = "datalog.txt";
 const String delimeter = ",";
-const String es2Header = "ec,temp";
+const String es2Header = "ec,Wtemp";
 const String phHeader = "voltage,pH";
+const String BME280Header = "Atemp,rH";
 
 // pH
 #define SensorPin A0            //pH meter Analog output to Arduino Analog Input 0
@@ -35,17 +39,17 @@ const String phHeader = "voltage,pH";
 int pHArray[ArrayLenth];   //Store the average value of the sensor feedback
 int pHArrayIndex=0;
 
+// BME280
+BME280 mySensor;
+
 /*===========================================================*/
 /*=========================== I/O ===========================*/
 /*===========================================================*/
 void setupSDCard() {
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-
-  Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
@@ -57,7 +61,7 @@ void setupSDCard() {
 }
 
 void writeHeaderToSD() {
-  String header = es2Header + delimeter + phHeader;
+  String header = es2Header + delimeter + phHeader + BME280Header;
   File dataFile = SD.open(fileName, FILE_WRITE);
   if (dataFile) {
     dataFile.println(header);
@@ -74,8 +78,6 @@ void writeDataToSD(char* data) {
   if (dataFile) {
     dataFile.println(data);
     dataFile.close();
-    // print to the serial port too:
-    Serial.println(data);
   }
   // if the file isn't open, pop up an error:
   else {
@@ -89,7 +91,6 @@ void writeDataToSD(char* data) {
 /*===========================================================*/
 void setupES2Sensor() {
   sdi_serial_connection.begin(); // start our SDI connection
-  Serial.begin(9600); // start our uart
   delay(3000); // startup delay to allow sensor to powerup and output its DDI serial string
 }
 
@@ -185,10 +186,49 @@ String collectPhData() {
 }
 
 /*===========================================================*/
+/*========================= BME280 ==========================*/
+/*===========================================================*/
+void setupBME280Sensor() {
+  //***Driver settings********************************//
+  mySensor.settings.commInterface = I2C_MODE;
+	mySensor.settings.I2CAddress = 0x77;
+
+  //***Operation settings*****************************//
+  mySensor.settings.runMode = 3; //  3, Normal mode
+  mySensor.settings.tStandby = 0; //  0, 0.5ms
+  mySensor.settings.filter = 0; //  0, filter off
+  //tempOverSample can be:
+  //  0, skipped
+  //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
+  mySensor.settings.tempOverSample = 1;
+  //pressOverSample can be:
+  //  0, skipped
+  //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
+  mySensor.settings.pressOverSample = 1;
+  //humidOverSample can be:
+  //  0, skipped
+  //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
+  mySensor.settings.humidOverSample = 1;
+
+  delay(10);  //Make sure sensor had enough time to turn on. BME280 requires 2ms to start up.
+
+  mySensor.begin(); //Calling .begin() causes the settings to be loaded
+}
+
+String collectBME280Data() {
+  return mySensor.readTempC() + delimeter +
+         mySensor.readFloatAltitudeMeters();
+}
+
+
+
+/*===========================================================*/
 /*=========================== MAIN ==========================*/
 /*===========================================================*/
 void setup() {
+  Serial.begin(9600); // start our uart
   setupES2Sensor();
+  setupBME280Sensor();
   setupSDCard();
   writeHeaderToSD();
 }
@@ -198,15 +238,19 @@ void loop() {
   //char* phData;
   String phData;
   String dataStr;
-  char* formattedData;
+  String BME280Data;
+  char formattedData[50];
 
   ES2Data = formatES2Data(collectES2Data());
   phData = collectPhData();
+  BME280Data = collectBME280Data();
 
-  dataStr = ES2Data + delimeter + phData;
+  dataStr = ES2Data + delimeter +
+            phData  + delimeter +
+            BME280Data;
 
-  dataStr.toCharArray(formattedData, dataStr.length());
-  Serial.println(dataStr);
+  dataStr.toCharArray(formattedData, 50);
+  Serial.println(formattedData);
 
   writeDataToSD(formattedData);
   delay(samplingInterval);
